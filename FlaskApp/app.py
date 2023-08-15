@@ -1,9 +1,8 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, render_template, redirect, request, make_response
 import mysql.connector
 import os
 from dotenv import load_dotenv
 from flask_cors import CORS
-from flask import Flask, render_template, request, jsonify, make_response
 from flask_jwt_extended import (
     JWTManager, create_access_token, 
     get_jwt_identity, jwt_required,
@@ -22,7 +21,7 @@ app.config['JWT_COOKIE_CSRF_PROTECT'] = True
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 30
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = 100
 jwt = JWTManager(app)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # .env 파일에서 환경 변수 로드
 load_dotenv()
@@ -84,24 +83,28 @@ def oauth_api():
     3-1. 만약 이미 있을 경우, (3) 과정 스킵
     4. 사용자 식별 id를 바탕으로 서비스 전용 access_token 생성
     """
-    code = str(request.args.get('code'))
+    try:
+        code = str(request.args.get('code'))
     
-    oauth = Oauth()
-    auth_info = oauth.auth(code)
-    user = oauth.userinfo("Bearer " + auth_info['access_token'])
+        oauth = Oauth()
+        auth_info = oauth.auth(code)
+        user = oauth.userinfo("Bearer " + auth_info['access_token'])
     
-    user = UserData(user)
-    UserModel().upsert_user(user)
+        user = UserData(user)
+        UserModel().upsert_user(user)
 
-    resp = make_response(render_template('index.html'))
-    access_token = create_access_token(identity=user.id)
-    refresh_token = create_refresh_token(identity=user.id)
-    resp.set_cookie("logined", "true")
-    set_access_cookies(resp, access_token)
-    set_refresh_cookies(resp, refresh_token)
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
+    
+        resp = redirect("/userinfo") 
 
-    return resp
+        set_access_cookies(resp, access_token)
+        set_refresh_cookies(resp, refresh_token)
 
+        return resp
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": "Internal Server Error"}), 500
 
 @app.route('/token/refresh')
 @jwt_required()
@@ -176,4 +179,4 @@ def oauth_userinfo_api():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

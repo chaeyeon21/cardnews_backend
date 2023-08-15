@@ -12,19 +12,6 @@ class Oauth:
             "Cache-Control": "no-cache",
         }
 
-    def auth(self, code):
-        return requests.post(
-            url=self.auth_server % "/oauth/token", 
-            headers=self.default_header,
-            data={
-                "grant_type": "authorization_code",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "redirect_uri": REDIRECT_URI,
-                "code": code,
-            }, 
-        ).json()
-
 
     def refresh(self, refresh_token):
         return requests.post(
@@ -49,3 +36,25 @@ class Oauth:
             #"property_keys":'["kakao_account.profile_image_url"]'
             data={}
         ).json()
+    
+    def auth(self, code):
+        response = requests.post(
+            url=self.auth_server % "/oauth/token", 
+            headers=self.default_header,
+            data={
+                "grant_type": "authorization_code",
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+                "redirect_uri": REDIRECT_URI,
+                "code": code,
+            },
+        )
+        
+        response_json = response.json()
+
+        if 'access_token' in response_json and 'refresh_token' in response_json:
+            response_json['access_token'] = response_json.pop('access_token')
+            response_json['refresh_token'] = response_json.pop('refresh_token')
+            return response_json
+        else:
+            raise Exception("Failed to obtain access_token and refresh_token from OAuth response.")
