@@ -1,6 +1,8 @@
 from flask import Flask, jsonify, render_template, redirect, request, make_response
 import mysql.connector
 import os
+from werkzeug.utils import secure_filename
+from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 from flask_cors import CORS
 from flask_jwt_extended import (
@@ -48,9 +50,67 @@ try:
 except mysql.connector.Error as err:
     print("Error connecting to the database:", err)
 
+UPLOAD_FOLDER = 'uploads'  # 이미지를 저장할 폴더 경로
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+print("Current directory:", os.path.abspath(app.config['UPLOAD_FOLDER']))
+
+# 업로드 폴더가 없으면 생성
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+app.config['SQLALCHEMY_DATABASE_URI'] =  'mysql://root:angelawhdudtj12!@localhost:3307/db_eatit'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+class job(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    jobAdd = db.Column(db.String(100))
+    jobImage = db.Column(db.String(100))
+    jobDate = db.Column(db.String(40))
+    jobField = db.Column(db.String(20))
+    requirements = db.Column(db.String(100))
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+
 @app.route("/")
 def main():
     return "Welcome!"
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # 업로드된 파일의 정보와 함께 기존 Job 테이블에 데이터 추가
+        jobAdd = request.form.get('jobAdd')
+        jobDate = request.form.get('jobDate')
+        jobField = request.form.get('jobField')
+        requirements = request.form.get('requirements')
+
+        # 이미 생성된 Job 테이블에 데이터 추가
+        new_job = job(jobAdd=jobAdd, jobImage=filepath, jobDate=jobDate, jobField=jobField, requirements=requirements)
+        db.session.add(new_job)
+        db.session.commit()
+
+        return jsonify({"message": "File uploaded and data saved successfully"}), 200
+    else:
+        return jsonify({"error": "File not allowed"}), 400
 
 @app.route("/api/jobs", methods=["GET"])
 def get_jobs():
@@ -62,13 +122,24 @@ def get_jobs():
         jobs_data = cursor.fetchall()
         cursor.close()
 
-        # 채용 정보를 JSON 형식으로 반환
-        return jsonify(jobs_data)
+        # 이미지 URL을 포함한 채용 정보를 JSON 형식으로 반환
+        jobs_with_image_urls = []
+        for job in jobs_data:
+            job_data = {
+                "id": job[0],
+                "jobAdd": job[1],
+                "jobImage": f"http://localhost:5000/{job[2]}",  # 이미지 URL 포함
+                "jobDate": job[3],
+                "jobField": job[4],
+                "requirements": job[5]
+            }
+            jobs_with_image_urls.append(job_data)
+        
+        return jsonify(jobs_with_image_urls)
     except mysql.connector.Error as err:
         return jsonify({"error": f"Database Error: {str(err)}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
 
 @app.route("/oauth")
 def oauth_api():
