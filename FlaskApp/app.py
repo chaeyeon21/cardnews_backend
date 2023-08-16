@@ -59,7 +59,7 @@ print("Current directory:", os.path.abspath(app.config['UPLOAD_FOLDER']))
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-app.config['SQLALCHEMY_DATABASE_URI'] =  'mysql://root:angelawhdudtj12!@localhost:3307/db_eatit'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
