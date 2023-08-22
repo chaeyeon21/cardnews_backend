@@ -14,6 +14,8 @@ from flask_jwt_extended import (
 from config import CLIENT_ID, REDIRECT_URI
 from controller import Oauth
 from model import UserModel, UserData
+import pymysql
+pymysql.install_as_MySQLdb()
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = "I'M IML."
@@ -247,6 +249,33 @@ def oauth_userinfo_api():
     access_token = request.get_json()['access_token']
     result = Oauth().userinfo("Bearer " + access_token)
     return jsonify(result)
+
+@app.route("/update_userinfo", methods=["POST"])
+@jwt_required()
+def update_userinfo():
+    try:
+        user_id = get_jwt_identity()
+        userinfo = UserModel().get_user(user_id)
+        if userinfo:
+            new_nickname = request.json.get("nickname")
+            new_profile = request.json.get("profile")
+            new_thumbnail = request.json.get("thumbnail")
+
+            if new_nickname:
+                userinfo.nickname = new_nickname
+            if new_profile:
+                userinfo.profile = new_profile
+            if new_thumbnail:
+                userinfo.thumbnail = new_thumbnail
+
+            db.session.commit()
+
+            return jsonify({"message": "User information updated successfully"}), 200
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 if __name__ == '__main__':
