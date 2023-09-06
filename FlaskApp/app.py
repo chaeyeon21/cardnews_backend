@@ -73,6 +73,26 @@ class job(db.Model):
     jobDate = db.Column(db.String(40))
     jobField = db.Column(db.String(20))
     requirements = db.Column(db.String(100))
+    
+    
+class news(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    newsTitle = db.Column(db.String(100))
+    newsContent = db.Column(db.String(2000))
+    newsDate = db.Column(db.String(40))
+    newsAuthor = db.Column(db.String(50))
+    newsPublished = db.Column(db.String(50))
+    newsImage = db.Column(db.String(100))
+    
+    
+class Cardnews(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    CardnewsTitle = db.Column(db.String(100))
+    CardnewsContent = db.Column(db.String(1000))
+    CardnewsPublished = db.Column(db.String(50))
+    CardnewsImage = db.Column(db.String(100))
+    
+
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -113,6 +133,39 @@ def upload_file():
         return jsonify({"message": "File uploaded and data saved successfully"}), 200
     else:
         return jsonify({"error": "File not allowed"}), 400
+    
+    
+@app.route('/upload_news', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        # 업로드된 파일의 정보와 함께 기존 news 테이블에 데이터 추가
+        newsTitle = request.form.get('newsTitle')
+        newsContent = request.form.get('newsContent')
+        newsDate = request.form.get('newsDate')
+        newsAuthor = request.form.get('newsAuthor')
+        newsPublished = request.form.get('newsPublished')
+        
+        # 이미 생성된 news 테이블에 데이터 추가
+        new_news = news(newsTitle=newsTitle, newsImage=filepath, newsContent=newsContent, newsDate=newsDate, newsAuthor=newsAuthor, newsPublished=newsPublished)
+        db.session.add(new_news)
+        db.session.commit()
+
+        return jsonify({"message": "File uploaded and data saved successfully"}), 200
+    else:
+        return jsonify({"error": "File not allowed"}), 400
+
 
 @app.route("/api/jobs", methods=["GET"])
 def get_jobs():
@@ -142,6 +195,36 @@ def get_jobs():
         return jsonify({"error": f"Database Error: {str(err)}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+    
+@app.route("/api/Cardnews", methods=["GET"])
+def get_Cardnews():
+    try:
+        # 데이터베이스에서 카드뉴스 정보 가져오기
+        cursor = db_connection.cursor()
+        query = "SELECT * FROM Cardnews;"
+        cursor.execute(query)
+        Cardnews_data = cursor.fetchall()
+        cursor.close()
+
+        # 이미지 URL을 포함한 카드뉴스 정보를 JSON 형식으로 반환
+        Cardnews_with_image_urls = []
+        for Cardnews in Cardnews_data:
+            Cardnews_data = {
+                "id": Cardnews[0],
+                "CardnewsTitle": Cardnews[1],
+                "CardnewsImage": f"http://localhost:5000/{Cardnews[2]}",  # 이미지 URL 포함
+                "CardnewsContent": Cardnews[3],
+                "CardnewsPublished": Cardnews[4],
+            }
+            Cardnews_with_image_urls.append(Cardnews_data)
+        
+        return jsonify(Cardnews_with_image_urls)
+    except mysql.connector.Error as err:
+        return jsonify({"error": f"Database Error: {str(err)}"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/oauth")
 def oauth_api():
