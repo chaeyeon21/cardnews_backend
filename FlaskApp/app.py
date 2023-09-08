@@ -80,17 +80,54 @@ job_model = api.model('Job', {
     'requirements': fields.String(description='Requirements')
 })
 
+# news 모델에 대한 API 모델 정의
+news_model = api.model('News', {
+    'id': fields.Integer(required=True, description='News ID'),
+    'newsTitle': fields.String(required=True, description='News Title'),
+    'newsContent': fields.String(required=True, description='News Content'),
+    'newsDate': fields.String(required=True, description='News Date'),
+    'newsAuthor': fields.String(required=True, description='News Author'),
+    'newsPublished': fields.String(required=True, description='News Published'),
+    'newsImage': fields.String(description='News Image URL')
+})
+
+# Cardnews 모델에 대한 API 모델 정의
+cardnews_model = api.model('CardNews', {
+    'id': fields.Integer(required=True, description='Card News ID'),
+    'CardnewsTitle': fields.String(required=True, description='Card News Title'),
+    'CardnewsContent': fields.String(required=True, description='Card News Content'),
+    'CardnewsPublished': fields.String(required=True, description='Card News Published'),
+    'CardnewsImage': fields.String(description='Card News Image URL')
+})
+
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 # 파라미터 파싱 정의 (필요에 따라 수정)
-parser = reqparse.RequestParser()
-parser.add_argument('id', type=int, required=True, help='Job ID')  # id 필드 추가
-parser.add_argument('jobAdd', type=str, required=True, help='Job Address')
-parser.add_argument('jobImage', type=str, required=True, help='Job Image URL')
-parser.add_argument('jobDate', type=str, required=True, help='Job Date')
-parser.add_argument('jobField', type=str, required=True, help='Job Field')
-parser.add_argument('requirements', type=str, help='Requirements')
+jobs_parser = reqparse.RequestParser()
+jobs_parser.add_argument('id', type=int, required=True, help='Job ID')  # id 필드 추가
+jobs_parser.add_argument('jobAdd', type=str, required=True, help='Job Address')
+jobs_parser.add_argument('jobImage', type=str, required=True, help='Job Image URL')
+jobs_parser.add_argument('jobDate', type=str, required=False, help='Job Date')
+jobs_parser.add_argument('jobField', type=str, required=False, help='Job Field')
+jobs_parser.add_argument('requirements', type=str, help='Requirements')
+
+# 파라미터 파싱 정의 (필요에 따라 수정)
+news_parser = reqparse.RequestParser()
+news_parser.add_argument('id', type=int, required=True, help='News ID')
+news_parser.add_argument('newsTitle', type=str, required=True, help='News Title')
+news_parser.add_argument('newsContent', type=str, required=True, help='News Content')
+news_parser.add_argument('newsDate', type=str, required=True, help='News Date')
+news_parser.add_argument('newsAuthor', type=str, required=False, help='News Author')
+news_parser.add_argument('newsPublished', type=str, required=True, help='News Published')
+news_parser.add_argument('newsImage', type=str, required=True, help='News Image URL')
+
+cardnews_parser = reqparse.RequestParser()
+cardnews_parser.add_argument('id', type=int, required=True, help='Card News ID')
+cardnews_parser.add_argument('CardnewsTitle', type=str, required=True, help='Card News Title')
+cardnews_parser.add_argument('CardnewsContent', type=str, required=True, help='Card News Content')
+cardnews_parser.add_argument('CardnewsPublished', type=str, required=True, help='Card News Published')
+cardnews_parser.add_argument('CardnewsImage', type=str, required=True, help='Card News Image URL')
 
 
 @app.route("/")
@@ -102,7 +139,7 @@ def allowed_file(filename):
 
 @api.route('/job_upload')
 class JobCreate(Resource):
-    api.doc('취업 정보 추가')
+    @api.doc('취업 정보 추가')
     @api.expect(job_model)
     def post(self):
         if 'file' not in request.files:
@@ -119,7 +156,7 @@ class JobCreate(Resource):
             file.save(filepath)
 
             # 파라미터 파싱
-            args = parser.parse_args()
+            args = jobs_parser.parse_args()
             id = args['id']  # 추가된 id 파라미터
             jobAdd = args['jobAdd']
             jobImage = filepath
@@ -136,7 +173,7 @@ class JobCreate(Resource):
         else:
             return jsonify({"error": "File not allowed"}), 400
 
-@api.route("/jobs_upload")
+@api.route("/job_info")
 class JobList(Resource):
     @api.doc('취업 정보 조회')
     @api.marshal_list_with(job_model)
@@ -144,25 +181,94 @@ class JobList(Resource):
         try:
             # 데이터베이스에서 채용 정보 가져오기
             cursor = db_connection.cursor()
-            query = "SELECT * FROM job;"
+            query = "SELECT * FROM Job;"
             cursor.execute(query)
             jobs_data = cursor.fetchall()
             cursor.close()
 
             # 이미지 URL을 포함한 채용 정보를 JSON 형식으로 반환
+
             jobs_with_image_urls = []
-            for job in jobs_data:
+            for Job in jobs_data:  # 'Job'으로 수정
                 job_data = {
-                    "id": job[0],
-                    "jobAdd": job[1],
-                    "jobImage": f"http://localhost:5000/{job[2]}",  # 이미지 URL 포함
-                    "jobDate": job[3],
-                    "jobField": job[4],
-                    "requirements": job[5]
+                    "id": Job[0],
+                    "jobAdd": Job[1],
+                    "jobImage": f"http://localhost:5000/{Job[2]}",  # 이미지 URL 포함
+                    "jobDate": Job[3],
+                    "jobField": Job[4],
+                    "requirements": Job[5]
                 }
                 jobs_with_image_urls.append(job_data)
+
         
             return jsonify(jobs_with_image_urls)
+        except mysql.connector.Error as err:
+            return jsonify({"error": f"Database Error: {str(err)}"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        
+@api.route('/news_upload', methods=['POST'])
+class NewsCreate(Resource):
+    @api.doc('뉴스 추가')
+    @api.expect(news_model)
+    def post(self):
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({"error": "No selected file"}), 400
+
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+
+            # 파라미터 파싱
+            args = news_parser.parse_args()
+            id = args['id']  # 추가된 id 파라미터
+            newsTitle = args['newsTitle']
+            newsContent = args['newsContent']
+            newsDate = args['newsDate']
+            newsAuthor = args['newsAuthor']
+            newsPublished = args['newsPublished']
+
+            # 이미 생성된 news 테이블에 데이터 추가
+            new_news = news_model(id=id, newsTitle=newsTitle, newsImage=filepath, newsContent=newsContent, newsDate=newsDate, newsAuthor=newsAuthor, newsPublished=newsPublished)
+            db.session.add(new_news)
+            db.session.commit()
+
+            return jsonify({"message": "File uploaded and data saved successfully"}), 200
+        else:
+            return jsonify({"error": "File not allowed"}), 400
+
+@api.route("/cardnews_info")
+class CardnewsList(Resource):
+    @api.doc('카드 뉴스 조회')
+    @api.marshal_list_with(cardnews_model)
+    def get(self):
+        try:
+            # 데이터베이스에서 카드뉴스 정보 가져오기
+            cursor = db_connection.cursor()
+            query = "SELECT * FROM Cardnews;"
+            cursor.execute(query)
+            Cardnews_data = cursor.fetchall()
+            cursor.close()
+
+            # 이미지 URL을 포함한 카드뉴스 정보를 JSON 형식으로 반환
+            Cardnews_with_image_urls = []
+            for Cardnews in Cardnews_data:
+                Cardnews_info = {
+                    "id": Cardnews[0],
+                    "CardnewsTitle": Cardnews[1],
+                    "CardnewsImage": f"http://localhost:5000/{Cardnews[2]}",  # 이미지 URL 포함
+                    "CardnewsContent": Cardnews[3],
+                    "CardnewsPublished": Cardnews[4],
+                }
+                Cardnews_with_image_urls.append(Cardnews_info)
+        
+            return Cardnews_with_image_urls
         except mysql.connector.Error as err:
             return jsonify({"error": f"Database Error: {str(err)}"}), 500
         except Exception as e:
