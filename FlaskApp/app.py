@@ -70,13 +70,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-class job(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    jobAdd = db.Column(db.String(100))
-    jobImage = db.Column(db.String(100))
-    jobDate = db.Column(db.String(40))
-    jobField = db.Column(db.String(20))
-    requirements = db.Column(db.String(100))
+# API 모델 정의 (필요에 따라 수정)
+job_model = api.model('Job', {
+    'id': fields.Integer(required=True, description='Job ID'),  # id 필드 추가
+    'jobAdd': fields.String(required=True, description='Job Address'),
+    'jobImage': fields.String(required=True, description='Job Image URL'),
+    'jobDate': fields.String(required=True, description='Job Date'),
+    'jobField': fields.String(required=True, description='Job Field'),
+    'requirements': fields.String(description='Requirements')
+})
+
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -124,24 +127,27 @@ class JobCreate(Resource):
             jobField = args['jobField']
             requirements = args['requirements']
 
-        # 이미 생성된 Job 테이블에 데이터 추가
-        new_job = job(jobAdd=jobAdd, jobImage=filepath, jobDate=jobDate, jobField=jobField, requirements=requirements)
-        db.session.add(new_job)
-        db.session.commit()
+            # 이미 생성된 Job 테이블에 데이터 추가
+            new_job = job_model(jobAdd=jobAdd, jobImage=filepath, jobDate=jobDate, jobField=jobField, requirements=requirements)
+            db.session.add(new_job)
+            db.session.commit()
 
-        return jsonify({"message": "File uploaded and data saved successfully"}), 200
-    else:
-        return jsonify({"error": "File not allowed"}), 400
+            return jsonify({"message": "File uploaded and data saved successfully"}), 200
+        else:
+            return jsonify({"error": "File not allowed"}), 400
 
-@app.route("/api/jobs", methods=["GET"])
-def get_jobs():
-    try:
-        # 데이터베이스에서 채용 정보 가져오기
-        cursor = db_connection.cursor()
-        query = "SELECT * FROM job;"
-        cursor.execute(query)
-        jobs_data = cursor.fetchall()
-        cursor.close()
+@api.route("/jobs_upload")
+class JobList(Resource):
+    @api.doc('취업 정보 조회')
+    @api.marshal_list_with(job_model)
+    def get(self):
+        try:
+            # 데이터베이스에서 채용 정보 가져오기
+            cursor = db_connection.cursor()
+            query = "SELECT * FROM job;"
+            cursor.execute(query)
+            jobs_data = cursor.fetchall()
+            cursor.close()
 
             # 이미지 URL을 포함한 채용 정보를 JSON 형식으로 반환
             jobs_with_image_urls = []
@@ -156,11 +162,11 @@ def get_jobs():
                 }
                 jobs_with_image_urls.append(job_data)
         
-        return jsonify(jobs_with_image_urls)
-    except mysql.connector.Error as err:
-        return jsonify({"error": f"Database Error: {str(err)}"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            return jsonify(jobs_with_image_urls)
+        except mysql.connector.Error as err:
+            return jsonify({"error": f"Database Error: {str(err)}"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
 @app.route("/oauth")
 def oauth_api():
