@@ -70,9 +70,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# API 모델 정의 (필요에 따라 수정)
+# job 모델에 대한 API 모델 정의
 job_model = api.model('Job', {
-    'id': fields.Integer(required=True, description='Job ID'),  # id 필드 추가
+    'id': fields.Integer(required=True, description='Job ID'),
     'jobAdd': fields.String(required=True, description='Job Address'),
     'jobImage': fields.String(required=True, description='Job Image URL'),
     'jobDate': fields.String(required=True, description='Job Date'),
@@ -100,6 +100,13 @@ cardnews_model = api.model('CardNews', {
     'CardnewsImage': fields.String(description='Card News Image URL')
 })
 
+# API 모델 정의 (필요에 따라 수정)
+user_model = api.model('User', {
+    'id': fields.Integer(required=True, description='User ID'),
+    'nickname': fields.String(description='User Nickname'),
+    'profile': fields.String(description='User Profile'),
+    'thumbnail': fields.String(description='User Thumbnail')
+})
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -128,6 +135,13 @@ cardnews_parser.add_argument('CardnewsTitle', type=str, required=True, help='Car
 cardnews_parser.add_argument('CardnewsContent', type=str, required=True, help='Card News Content')
 cardnews_parser.add_argument('CardnewsPublished', type=str, required=True, help='Card News Published')
 cardnews_parser.add_argument('CardnewsImage', type=str, required=True, help='Card News Image URL')
+
+# 파라미터 파싱 정의 (필요에 따라 수정)
+user_parser = reqparse.RequestParser()
+user_parser.add_argument('id', type=int, required=True, help='User ID')  # id 필드 추가
+user_parser.add_argument('nickname', type=str, help='User Nickname')
+user_parser.add_argument('profile', type=str, help='User Profile')
+user_parser.add_argument('thumbnail', type=str, help='User Thumbnail')
 
 
 @app.route("/")
@@ -381,31 +395,35 @@ def oauth_userinfo_api():
     result = Oauth().userinfo("Bearer " + access_token)
     return jsonify(result)
 
-@app.route("/update_userinfo", methods=["POST"])
-@jwt_required()
-def update_userinfo():
-    try:
-        user_id = get_jwt_identity()
-        userinfo = UserModel().get_user(user_id)
-        if userinfo:
-            new_nickname = request.json.get("nickname")
-            new_profile = request.json.get("profile")
-            new_thumbnail = request.json.get("thumbnail")
+@api.route('/update_userinfo', methods=['POST'])
+class UpdateUserInfo(Resource):
+    @api.doc('사용자 정보 수정')
+    @api.expect(user_model)
+    @jwt_required()
+    def post(self):
+        try:
+            user_id = get_jwt_identity()
+            userinfo = UserModel().get_user(user_id)
+            if userinfo:
+                new_nickname = api.payload.get("nickname")
+                new_profile = api.payload.get("profile")
+                new_thumbnail = api.payload.get("thumbnail")
 
-            if new_nickname:
-                userinfo.nickname = new_nickname
-            if new_profile:
-                userinfo.profile = new_profile
-            if new_thumbnail:
-                userinfo.thumbnail = new_thumbnail
+                if new_nickname:
+                    userinfo.nickname = new_nickname
+                if new_profile:
+                    userinfo.profile = new_profile
+                if new_thumbnail:
+                    userinfo.thumbnail = new_thumbnail
 
-            db.session.commit()
+                db.session.commit()
 
-            return jsonify({"message": "User information updated successfully"}), 200
-        else:
-            return jsonify({"error": "User not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+                return {"message": "사용자 정보가 성공적으로 업데이트되었습니다."}, 200
+            else:
+                return {"error": "사용자를 찾을 수 없습니다."}, 404
+        except Exception as e:
+            return {"error": str(e)}, 500
+
 
 
 
