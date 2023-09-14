@@ -17,6 +17,7 @@ from model import UserModel, UserData
 import pymysql
 pymysql.install_as_MySQLdb()
 from flask_restx import Api, Resource, fields, reqparse
+from datetime import datetime
 
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = "I'M IML."
@@ -108,18 +109,41 @@ user_model = api.model('User', {
     'thumbnail': fields.String(description='User Thumbnail')
 })
 
+# board 모델에 대한 API 모델 정의
+board_model = api.model('게시글', {
+    'boardId': fields.Integer(required=True, description='게시글 ID'),
+    'boardWriterId': fields.Integer(required=True, description='게시글 작성자의 ID'),
+    'boardWriter': fields.String(required=True, description='게시글 작성자'),
+    'boardTitle': fields.String(required=True, description='게시글 제목'),
+    'boardContent': fields.String(required=True, description='게시글 내용'),
+    'boardDaytime': fields.DateTime(description='게시글 작성 일시'),  # DateTime으로 변경
+})
+
+# Comment 모델에 대한 API 모델 정의
+comment_model = api.model('댓글', {
+    'commentBoardId': fields.Integer(required=True, description='게시글 ID'),
+    'commentId': fields.Integer(required=True, description='댓글 ID'),
+    'commentWriterId': fields.Integer(required=True, description='댓글 작성자의 ID'),
+    'commentWriter': fields.String(required=True, description='댓글 작성자'),
+    'commentContent': fields.String(required=True, description='댓글 내용'),
+    'commentDaytime': fields.DateTime(description='댓글 작성 일시')
+})
+
+board_update_model = api.model('게시글 수정', {
+    'boardTitle': fields.String(description='수정된 게시글 제목'),
+    'boardContent': fields.String(description='수정된 게시글 내용')
+})
+
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
-# 파라미터 파싱 정의 (필요에 따라 수정)
 jobs_parser = reqparse.RequestParser()
-jobs_parser.add_argument('id', type=int, required=True, help='Job ID')  # id 필드 추가
+jobs_parser.add_argument('id', type=int, required=True, help='Job ID')
 jobs_parser.add_argument('jobAdd', type=str, required=True, help='Job Address')
 jobs_parser.add_argument('jobImage', type=str, required=True, help='Job Image URL')
 jobs_parser.add_argument('jobDate', type=str, required=False, help='Job Date')
 jobs_parser.add_argument('jobField', type=str, required=False, help='Job Field')
 jobs_parser.add_argument('requirements', type=str, help='Requirements')
 
-# 파라미터 파싱 정의 (필요에 따라 수정)
 news_parser = reqparse.RequestParser()
 news_parser.add_argument('id', type=int, required=True, help='News ID')
 news_parser.add_argument('newsTitle', type=str, required=True, help='News Title')
@@ -136,13 +160,31 @@ cardnews_parser.add_argument('CardnewsContent', type=str, required=True, help='C
 cardnews_parser.add_argument('CardnewsPublished', type=str, required=True, help='Card News Published')
 cardnews_parser.add_argument('CardnewsImage', type=str, required=True, help='Card News Image URL')
 
-# 파라미터 파싱 정의 (필요에 따라 수정)
 user_parser = reqparse.RequestParser()
-user_parser.add_argument('id', type=int, required=True, help='User ID')  # id 필드 추가
+user_parser.add_argument('id', type=int, required=True, help='User ID')
 user_parser.add_argument('nickname', type=str, help='User Nickname')
 user_parser.add_argument('profile', type=str, help='User Profile')
 user_parser.add_argument('thumbnail', type=str, help='User Thumbnail')
 
+board_parser = reqparse.RequestParser()
+board_parser.add_argument('boardId', type=int, required=True, help='게시글 ID')
+board_parser.add_argument('boardWriterId', type=int, required=True, help='게시글 작성자의 ID')
+board_parser.add_argument('boardWriter', type=str, required=True, help='작성자')
+board_parser.add_argument('boardTitle', type=str, required=True, help='게시글 제목')
+board_parser.add_argument('boardContent', type=str, help='게시글 내용')
+board_parser.add_argument('boardDaytime', type=datetime, help='작성 일시')
+
+comment_parser = reqparse.RequestParser()
+comment_parser.add_argument('commentBoardId', type=int, required=True, help='게시글 ID')
+comment_parser.add_argument('commentId', type=int, required=True, help='댓글 ID')
+comment_parser.add_argument('commentWriterId', type=int, required=True, help='댓글 작성자의 ID')
+comment_parser.add_argument('commentWriter', type=str, required=True, help='댓글 작성자')
+comment_parser.add_argument('commentContent', type=str, required=True, help='댓글 내용')
+comment_parser.add_argument('commentDaytime', type=datetime, help='댓글 작성 일시')
+
+board_update_parser = reqparse.RequestParser()
+board_update_parser.add_argument('boardTitle', type=str, required=True, help='수정된 게시글 제목')
+board_update_parser.add_argument('boardContent', type=str, required=True, help='수정된 게시글 내용')
 
 @app.route("/")
 def main():
@@ -151,11 +193,223 @@ def main():
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+@api.route("/board")
+class BoardList(Resource):
+    @api.doc('게시글 목록 조회')
+    @api.marshal_list_with(board_model)
+    def get(self):
+        """게시글 목록 조회"""
+        try:
+            # 데이터베이스에서 게시글 정보 가져오기
+            cursor = db_connection.cursor()
+            query = "SELECT * FROM Board;"
+            cursor.execute(query)
+            boards_data = cursor.fetchall()
+            cursor.close()
+
+            # 게시글 정보를 JSON 형식으로 반환
+            boards_list = []
+            for board in boards_data:
+                board_data = {
+                    "boardId": board[0],
+                    "boardWriter": board[1],
+                    "boardTitle": board[2],
+                    "boardDaytime": board[3].isoformat() if board[4] else None  # ISO 형식으로 변환
+                }
+                boards_list.append(board_data)
+
+            return jsonify(boards_list)
+        except mysql.connector.Error as err:
+            return jsonify({"error": f"Database Error: {str(err)}"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+@api.route('/board/write')
+class BoardCreate(Resource):
+    @api.doc('게시글 작성')
+    @api.expect(board_model)  # 게시글 작성에 필요한 모델을 지정
+    def post(self):
+        """게시글 작성"""
+        # 게시글 작성에 필요한 파라미터 파싱
+        args = board_parser.parse_args()
+        boardWriterId = args['boardWriterId']  # 게시글 작성자의 ID
+        boardTitle = args['boardTitle']
+        boardContent = args['boardContent']
+
+        # 게시글 작성자의 정보 가져오기 (user_model을 사용)
+        user = user_model.query.get(boardWriterId)
+        if user is None:
+            return jsonify({"error": "User not found"}), 404
+
+        boardWriter = user.nickname  # 작성자의 nickname 사용
+        boardWriterId = user.id
+        boardDaytime = datetime.now()  # 현재 시간을 사용하여 작성 일자 생성
+
+        try:
+            # 게시글을 DB에 저장
+            new_board = board_model(
+                boardWriterId=boardWriterId,
+                boardWriter=boardWriter,
+                boardTitle=boardTitle,
+                boardContent=boardContent,
+                boardDaytime=boardDaytime  # 작성 일자 추가
+            )
+            db.session.add(new_board)
+            db.session.commit()
+
+            return jsonify({"message": "게시글이 작성되었습니다."}), 201  # Created
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  # Internal Server Error
+
+@api.route("/board/<int:board_id>")
+class Board(Resource):
+    @api.doc('게시글 상세 조회')
+    @api.marshal_with(board_model)
+    def get(self, board_id):
+        """게시글 상세 조회"""
+        try:
+            # 데이터베이스에서 게시글 정보 가져오기
+            cursor = db_connection.cursor()
+            query = "SELECT * FROM Board WHERE boardId = %s;"
+            cursor.execute(query, (board_id,))
+            board_data = cursor.fetchone()
+            cursor.close()
+
+            if board_data is None:
+                return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
+
+            # 게시글 정보를 JSON 형식으로 반환
+            board_info = {
+                "boardId": board_data[0],
+                "boardWriter": board_data[1],
+                "boardTitle": board_data[2],
+                "boardContent": board_data[3],  # 게시글 내용 추가
+                "boardDaytime": board_data[4].isoformat() if board_data[4] else None  # ISO 형식으로 변환
+            }
+
+            return jsonify(board_info)
+        except mysql.connector.Error as err:
+            return jsonify({"error": f"Database Error: {str(err)}"}), 500
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+@api.route("/board/<int:board_id>/update")
+class BoardUpdate(Resource):
+    @api.doc('게시글 수정')
+    @api.expect(board_update_model)  # 게시글 수정에 필요한 모델을 지정 (boardTitle과 boardContent만 수정 가능)
+    def put(self, board_id):
+        """게시글 수정"""
+        # 게시글 수정에 필요한 파라미터 파싱
+        args = board_update_parser.parse_args()
+        boardTitle = args['boardTitle']
+        boardContent = args['boardContent']
+
+        try:
+            # 데이터베이스에서 해당 게시글 가져오기
+            board = Board.query.get(board_id)
+            if board is None:
+                return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
+
+            # boardTitle과 boardContent만 업데이트
+            board.boardTitle = boardTitle
+            board.boardContent = boardContent
+
+            db.session.commit()
+
+            return jsonify({"message": "게시글이 수정되었습니다."}), 200  # OK
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  # Internal Server Error
+
+@api.route("/board/<int:board_id>/delete")
+class BoardDelete(Resource):
+    @api.doc('게시글 삭제')
+    def delete(self, board_id):
+        """게시글 삭제"""
+        try:
+            # 데이터베이스에서 해당 게시글 가져오기
+            board = Board.query.get(board_id)
+            if board is None:
+                return jsonify({"error": "게시글을 찾을 수 없습니다."}), 404
+
+            # 게시글 삭제
+            db.session.delete(board)
+            db.session.commit()
+
+            # 삭제된 게시글 이후의 boardId를 하나씩 당김
+            boards_to_update = Board.query.filter(Board.boardId > board_id).all()
+            for b in boards_to_update:
+                b.boardId -= 1
+
+            db.session.commit()
+
+            return jsonify({"message": "게시글이 삭제되었습니다."}), 200  # OK
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  # Internal Server Error
+
+@api.route("/board/<int:board_id>/comment")
+class CommentCreate(Resource):
+    @api.doc('댓글 작성')
+    @api.expect(comment_model)  # 댓글 작성에 필요한 모델을 지정
+    def post(self, board_id):
+        """댓글 작성"""
+        # 댓글 작성에 필요한 파라미터 파싱
+        args = comment_parser.parse_args()
+        commentBoardId = board_id  # 게시글 ID는 URL에서 가져옴
+        commentId = args['commentId']
+        commentWriterId = args['commentWriterId']  # 작성자 ID 추가
+        commentContent = args['commentContent']
+        commentDaytime = datetime.now()  # 현재 시간을 사용하여 작성 일자 생성
+
+        # 작성자 정보 가져오기 (user_model을 사용)
+        user = user_model.query.get(commentWriterId)
+        if user is None:
+            return jsonify({"error": "댓글 작성자를 찾을 수 없습니다."}), 404
+
+        commentWriter = user.nickname  # 작성자의 nickname 사용
+        commentWriterId = user.id
+
+        try:
+            # 댓글을 DB에 저장
+            new_comment = comment_model(
+                commentBoardId=commentBoardId,
+                commentId=commentId,
+                commentWriterId=commentWriterId,  # 작성자 ID 추가
+                commentWriter=commentWriter,
+                commentContent=commentContent,
+                commentDaytime=commentDaytime  # 작성 일자 추가
+            )
+            db.session.add(new_comment)
+            db.session.commit()
+
+            return jsonify({"message": "댓글이 작성되었습니다."}), 201  # Created
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  # Internal Server Error
+
+@api.route("/board/<int:board_id>/comment/<int:comment_id>")
+class CommentDelete(Resource):
+    @api.doc('댓글 삭제')
+    def delete(self, board_id, comment_id):
+        """댓글 삭제"""
+        try:
+            # 데이터베이스에서 해당 댓글 가져오기
+            comment = comment_model.query.filter_by(commentBoardId=board_id, commentId=comment_id).first()
+            if comment is None:
+                return jsonify({"error": "댓글을 찾을 수 없습니다."}), 404
+
+            # 댓글 삭제
+            db.session.delete(comment)
+            db.session.commit()
+
+            return jsonify({"message": "댓글이 삭제되었습니다."}), 200  # OK
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500  # Internal Server Error
+
 @api.route('/job_upload')
 class JobCreate(Resource):
     @api.doc('취업 정보 추가')
     @api.expect(job_model)
     def post(self):
+        """취업 정보 추가"""
         if 'file' not in request.files:
             return jsonify({"error": "No file part"}), 400
 
@@ -192,6 +446,7 @@ class JobList(Resource):
     @api.doc('취업 정보 조회')
     @api.marshal_list_with(job_model)
     def get(self):
+        """취업 정보 조회"""
         try:
             # 데이터베이스에서 채용 정보 가져오기
             cursor = db_connection.cursor()
@@ -226,6 +481,7 @@ class NewsCreate(Resource):
     @api.doc('뉴스 추가')
     @api.expect(news_model)
     def post(self):
+        """뉴스 추가"""
         if 'file' not in request.files:
             return jsonify({"error": "No file part"}), 400
 
@@ -262,6 +518,7 @@ class CardnewsList(Resource):
     @api.doc('카드 뉴스 조회')
     @api.marshal_list_with(cardnews_model)
     def get(self):
+        """카드 뉴스 조회"""
         try:
             # 데이터베이스에서 카드뉴스 정보 가져오기
             cursor = db_connection.cursor()
@@ -401,6 +658,7 @@ class UpdateUserInfo(Resource):
     @api.expect(user_model)
     @jwt_required()
     def post(self):
+        """사용자 정보 수정"""
         try:
             user_id = get_jwt_identity()
             userinfo = UserModel().get_user(user_id)
