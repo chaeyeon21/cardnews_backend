@@ -462,7 +462,7 @@ class JobList(Resource):
                 job_data = {
                     "id": Job[0],
                     "jobAdd": Job[1],
-                    "jobImage": f"http://localhost:5000/{Job[2]}",  # 이미지 URL 포함
+                    "jobImage": f"https://eatit-backend.azurewebsites.net/{Job[2]}",  # 이미지 URL 포함
                     "jobDate": Job[3],
                     "jobField": Job[4],
                     "requirements": Job[5]
@@ -533,7 +533,7 @@ class CardnewsList(Resource):
                 Cardnews_info = {
                     "id": Cardnews[0],
                     "CardnewsTitle": Cardnews[1],
-                    "CardnewsImage": f"http://localhost:5000/{Cardnews[2]}",  # 이미지 URL 포함
+                    "CardnewsImage": f"https://eatit-backend.azurewebsites.net/{Cardnews[2]}",  # 이미지 URL 포함
                     "CardnewsContent": Cardnews[3],
                     "CardnewsPublished": Cardnews[4],
                 }
