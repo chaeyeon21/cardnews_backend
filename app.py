@@ -126,7 +126,7 @@ cardnews_parser.add_argument('CardnewsPublished', type=str, required=True, help=
 cardnews_parser.add_argument('CardnewsImage', type=str, required=True, help='Card News Image URL')
 
 # API 모델 정의 (필요에 따라 수정)
-user_model = api.model('User', {
+user_model = api.model('users', {
     'id': fields.Integer(required=True, description='User ID'),
     'nickname': fields.String(description='User Nickname'),
     'profile': fields.String(description='User Profile'),
