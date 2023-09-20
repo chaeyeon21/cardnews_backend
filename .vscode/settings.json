@@ -1,0 +1,7 @@
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "python.formatting.provider": "none",
+    "appService.defaultWebAppToDeploy": "/subscriptions/62c8b2cb-c574-430d-ac4c-9ea68e622e7f/resourceGroups/appsvc_linux_centralus_basic/providers/Microsoft.Web/sites/eatit-backend"
+}
